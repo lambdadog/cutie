@@ -1,0 +1,25 @@
+name:                cutie
+version:             0.1.0.0
+github:              "transitracer/cutie"
+license:             BSD3
+author:              "Ashlynn Anderson"
+maintainer:          "ashlynn.anderson@tutanota.com"
+copyright:           "2019 Ashlynn Anderson"
+
+extra-source-files:
+  - README.md
+
+description:         Toy IRC bot for be.cutewith.me (IRC server)
+
+dependencies:
+  - base >= 4.7 && < 5
+
+executables:
+  cutie:
+    main:                Main.hs
+    source-dirs:         src
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    
