@@ -13,6 +13,8 @@ description:         Toy IRC bot for be.cutewith.me (IRC server)
 
 dependencies:
   - base >= 4.7 && < 5
+  - network-simple-tls >= 0.3 && < 0.4
+  - bytestring >= 0.10 && < 0.11
 
 executables:
   cutie:
