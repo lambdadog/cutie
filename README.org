@@ -1,0 +1,26 @@
+* Cutie
+
+An IRC bot built for Haskell learning purposes.
+
+It's designed for a friend's IRC server, running Oragono 1.0.0, so it
+may have some idiosyncracies related to that, but I'll try to note
+them in a comment where I remember to.
+
+** Installation
+
+#+BEGIN_SRC shell
+$ git clone https://github.com/transitracer/cutie
+$ stack install # make sure stack installs to your PATH
+$ # To run (anywhere):
+$ cutie
+#+END_SRC
+
+Alternatively, if you don't want to install to your PATH and keep it
+self contained, you can just build it and run it with stack:
+
+#+BEGIN_SRC shell
+$ git clone https://github.com/transitracer/cutie
+$ stack build
+$ # To run (in the repository):
+$ stack run
+#+END_SRC

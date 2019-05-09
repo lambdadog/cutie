@@ -7,7 +7,7 @@ maintainer:          "ashlynn.anderson@tutanota.com"
 copyright:           "2019 Ashlynn Anderson"
 
 extra-source-files:
-  - README.md
+  - README.org
 
 description:         Toy IRC bot for be.cutewith.me (IRC server)
 
