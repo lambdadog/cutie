@@ -28,6 +28,7 @@ main = do (address:port:nick:_) <- getArgs -- gives an awful error, TODO: fix
 sockLoop :: Context -> IO ()
 sockLoop c = do Just dat <- recv c
                 putStr $ unpack dat -- log to console
+                putStrLn $ show $ IRC.decode dat
                 case (handle $ IRC.decode dat) of
                   Just message -> send c $ IRC.encode message
                   Nothing -> return ()
@@ -42,6 +43,11 @@ handle (Just (IRC.Message _ _ (IRC.PrivMsg _ ('!':command)))) =
   case (handleCommand command) of
     Just m  -> Just $ IRC.Message Nothing Nothing m
     Nothing -> Nothing
+
+-- request the labeled response capability once identified
+handle (Just (IRC.Message _ _ (IRC.Identified))) = Just $
+  IRC.Message Nothing Nothing (IRC.CapabilityRequest [IRC.BatchCapability,
+                                                      IRC.LabeledResponseCapability])
 
 handle _ = Nothing
   

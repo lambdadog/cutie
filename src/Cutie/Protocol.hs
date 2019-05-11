@@ -10,6 +10,7 @@ import Text.Megaparsec.Char
 
 import Data.ByteString.Char8 (pack, unpack)
 import Data.Either.Combinators (rightToMaybe)
+import Data.Char
 
 -- Only support what we need to here, no need to get fancy
 
@@ -42,6 +43,9 @@ data Command = Nick String (Maybe Int)
              | CapabilityEnd
              | CapabilityAck [Capability]
              | CapabilityNak [Capability]
+             | Identified -- Not a real command, but this is what
+             -- we're calling 001. Lets us run a command after we've
+             -- identified to the server and it's been accepted
              | UnknownCommand String
   deriving (Show)
 
@@ -53,11 +57,9 @@ data Capability = LabeledResponseCapability -- draft
 
 type Parser = Parsec Void String
 
--- The magic function that turns a string into this mess above. It's
--- fake for now instead of undefined just so the program stays
--- functioning.
-
--- Worth noting that this parser is extremely standard non-conforming, there almost certainly are edge cases (and possibly even full-blown cases) where it'll break.
+-- Worth noting that this parser is extremely standard non-conforming,
+-- there almost certainly are edge cases (and possibly even full-blown
+-- cases) where it'll break.
 
 -- It's objectively bad to unpack the bytestring to a string, but it's
 -- impossible to use char with any ease otherwise, so I'm willing to
@@ -129,7 +131,45 @@ prefixParser = do _ <- char ':'
                   return $ Prefix nick user host
 
 commandParser :: Parser Command
-commandParser = return $ UnknownCommand ""
+commandParser = do keyword <- some alphaNumChar
+                   _ <- some spaceChar
+                   command <- case (map toLower keyword) of
+                                "nick" -> parseNick
+                                "user" -> parseUser
+                                "privmsg" -> parsePrivMsg
+                                -- "join" -> parseJoin
+                                -- "cap" -> parseCap
+                                "001" -> return Identified
+                                k -> return $ UnknownCommand k
+                   _ <- optional $ some printChar
+                   return command
+
+notSpaceChar = satisfy $ (not . isSpace)
+
+-- There's some way to abstract over these and I know it, but I'm not
+-- gonna worry about it for now. 
+parseNick :: Parser Command
+parseNick = do nick <- some notSpaceChar
+               return $ Nick nick Nothing
+
+parseUser :: Parser Command
+parseUser = do nick <- some notSpaceChar
+               _    <- some spaceChar
+               _1   <- some notSpaceChar
+               _    <- some spaceChar
+               _2   <- some notSpaceChar
+               _    <- some spaceChar
+               _3   <- some notSpaceChar
+               return $ User nick _1 _2 _3
+
+parsePrivMsg :: Parser Command
+parsePrivMsg = do channel <- some notSpaceChar
+                  _ <- some (spaceChar <|> char ':') -- FIXME
+                  message <- some printChar
+                  return $ PrivMsg channel message
 
 encode :: Message -> B.ByteString
-encode = undefined
+encode (Message _ _ (CapabilityRequest [BatchCapability,
+                                        LabeledResponseCapability])) =
+  pack $ "CAP REQ :draft/labeled-response batch\r\n"
+encode _ = undefined
