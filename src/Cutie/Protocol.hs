@@ -11,6 +11,7 @@ import Text.Megaparsec.Char
 import Data.ByteString.Char8 (pack, unpack)
 import Data.Either.Combinators (rightToMaybe)
 import Data.Char
+import Data.List
 
 -- Only support what we need to here, no need to get fancy
 
@@ -46,6 +47,8 @@ data Command = Nick String (Maybe Int)
              | Identified -- Not a real command, but this is what
              -- we're calling 001. Lets us run a command after we've
              -- identified to the server and it's been accepted
+             | Ping String
+             | Pong String
              | UnknownCommand String
   deriving (Show)
 
@@ -65,7 +68,7 @@ type Parser = Parsec Void String
 -- impossible to use char with any ease otherwise, so I'm willing to
 -- take the performance hit for now for more readable code.
 decode :: B.ByteString -> Maybe Message
-decode message = rightToMaybe $ parse messageParser "irc" $ unpack message
+decode = rightToMaybe . parse messageParser "irc" . unpack
 
 messageParser :: Parser Message
 messageParser = do tags <- optional tagsParser
@@ -138,13 +141,23 @@ commandParser = do keyword <- some alphaNumChar
                                 "user" -> parseUser
                                 "privmsg" -> parsePrivMsg
                                 -- "join" -> parseJoin
-                                -- "cap" -> parseCap
+                                "cap" -> parseCap
                                 "001" -> return Identified
                                 k -> return $ UnknownCommand k
                    _ <- optional $ some printChar
                    return command
 
 notSpaceChar = satisfy $ (not . isSpace)
+
+-- FIXME: broken, and only designed to notice CAP * ACK
+parseCap :: Parser Command
+parseCap = do _ <- some alphaNumChar
+              _ <- some spaceChar
+              second <- some alphaNumChar
+              _ <- some spaceChar
+              return $ case (map toLower second) of
+                "ack" -> CapabilityAck []
+                k -> UnknownCommand k
 
 -- There's some way to abstract over these and I know it, but I'm not
 -- gonna worry about it for now. 
@@ -168,8 +181,37 @@ parsePrivMsg = do channel <- some notSpaceChar
                   message <- some printChar
                   return $ PrivMsg channel message
 
+-- Does no checking for you encoding nonsense, be careful
 encode :: Message -> B.ByteString
-encode (Message _ _ (CapabilityRequest [BatchCapability,
-                                        LabeledResponseCapability])) =
-  pack $ "CAP REQ :draft/labeled-response batch\r\n"
-encode _ = undefined
+encode (Message tags prefix command) =
+  pack $ concat [encodeTags tags,
+                 encodePrefix prefix,
+                 encodeCommand command,
+                 "\r\n"]
+
+encodeTags :: Maybe [Tag] -> String
+encodeTags (Just tags) = "@" ++ (intercalate ";" $ map encodeTag tags) ++ " "
+encodeTags Nothing = ""
+
+encodeTag :: Tag -> String
+encodeTag (LabelTag val) = "draft/label=" ++ val
+
+-- ignore everything other than nick for now
+encodePrefix :: Maybe Prefix -> String
+encodePrefix (Just (Prefix nick mUser mHost)) = ":" ++ nick
+encodePrefix Nothing = ""
+
+encodeCommand :: Command -> String
+encodeCommand (Join channels Nothing) = "JOIN " ++ (intercalate "," channels)
+encodeCommand (CapabilityRequest caps) = "CAP REQ :" ++ (intercalate " " $
+                                                         map encodeCapability caps)
+encodeCommand (PrivMsg channel message) = "PRIVMSG " ++ channel ++ " :" ++ message
+encodeCommand _ = ""
+
+encodeCapability :: Capability -> String
+encodeCapability LabeledResponseCapability = "draft/labeled-response"
+encodeCapability BatchCapability = "batch"
+encodeCapability _ = ""
+
+msgBuilder :: Command -> Message
+msgBuilder = Message Nothing Nothing

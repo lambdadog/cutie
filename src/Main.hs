@@ -4,7 +4,9 @@ import Network.Simple.TCP.TLS
 import qualified Data.ByteString as B
 import Data.ByteString.Char8 (pack, unpack)
 import System.Environment
+import Control.Monad (mapM)
 import qualified Cutie.Protocol as IRC
+import Cutie.Protocol (msgBuilder)
 import Cutie.Commands
 
 -- Usage: cutie "example.irc.network" 6697 cutie_bot
@@ -29,25 +31,38 @@ sockLoop :: Context -> IO ()
 sockLoop c = do Just dat <- recv c
                 putStr $ unpack dat -- log to console
                 putStrLn $ show $ IRC.decode dat
+                putStrLn $ show $ handle $ IRC.decode dat
                 case (handle $ IRC.decode dat) of
-                  Just message -> send c $ IRC.encode message
+                  Just messages -> do
+                    mapM_ (putStrLn . unpack . IRC.encode) messages
+                    mapM_ (send c . IRC.encode) messages
                   Nothing -> return ()
                 sockLoop c
 
 -- Receive a message, and maybe respond, will be moved to another
 -- module later down the line.
-handle :: Maybe IRC.Message -> Maybe IRC.Message
+handle :: Maybe IRC.Message -> Maybe [IRC.Message]
 -- This is definitely kinda hard to mentally parse, maybe I should use
 -- view patterns here to convert this to a datatype for handleCommand
-handle (Just (IRC.Message _ _ (IRC.PrivMsg _ ('!':command)))) =
-  case (handleCommand command) of
-    Just m  -> Just $ IRC.Message Nothing Nothing m
+handle (Just (IRC.Message Nothing _ (IRC.PrivMsg _ ('!':command)))) =
+  case (handleCommand $ buildCommand $ command) of
+    Just m  -> Just $ map msgBuilder m
     Nothing -> Nothing
 
--- request the labeled response capability once identified
+-- The reason we have to go through this rigamarole to join, is
+-- because Cutiebot is built against an oragono 1.0.0 server, and this
+-- is the way to batch `autoreplay-on-join` messages, which are nice
+-- for the user, but terrible for a robot like cutiebot. See:
+-- https://github.com/oragono/oragono/issues/456#issuecomment-480889973
 handle (Just (IRC.Message _ _ (IRC.Identified))) = Just $
-  IRC.Message Nothing Nothing (IRC.CapabilityRequest [IRC.BatchCapability,
-                                                      IRC.LabeledResponseCapability])
+  [msgBuilder (IRC.CapabilityRequest [IRC.BatchCapability,
+                                     IRC.LabeledResponseCapability])]
+
+handle (Just (IRC.Message _ _ (IRC.CapabilityAck _))) = Just $
+  [IRC.Message
+   (Just [IRC.LabelTag "joinlabel"])
+   Nothing
+   (IRC.Join ["#general"] Nothing)]
 
 handle _ = Nothing
   
