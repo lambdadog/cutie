@@ -141,6 +141,7 @@ commandParser = do keyword <- some alphaNumChar
                                 "user" -> parseUser
                                 "privmsg" -> parsePrivMsg
                                 -- "join" -> parseJoin
+                                "ping" -> parsePing
                                 "cap" -> parseCap
                                 "001" -> return Identified
                                 k -> return $ UnknownCommand k
@@ -158,6 +159,12 @@ parseCap = do _ <- some alphaNumChar
               return $ case (map toLower second) of
                 "ack" -> CapabilityAck []
                 k -> UnknownCommand k
+
+-- This is wrong, but should work for properly formed ping commands
+parsePing :: Parser Command
+parsePing = do _ <- optional $ char ':'
+               to <- some printChar
+               return $ Ping to
 
 -- There's some way to abstract over these and I know it, but I'm not
 -- gonna worry about it for now. 
@@ -206,6 +213,7 @@ encodeCommand (Join channels Nothing) = "JOIN " ++ (intercalate "," channels)
 encodeCommand (CapabilityRequest caps) = "CAP REQ :" ++ (intercalate " " $
                                                          map encodeCapability caps)
 encodeCommand (PrivMsg channel message) = "PRIVMSG " ++ channel ++ " :" ++ message
+encodeCommand (Pong to) = "PONG :" ++ to
 encodeCommand _ = ""
 
 encodeCapability :: Capability -> String
