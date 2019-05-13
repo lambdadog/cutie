@@ -108,18 +108,14 @@ tagParser = do key   <- some keyNameChar
                  (key, value)                -> UnknownTag key value
                  
 
-nickChar = alphaNumChar
-           <|> symbolChar
-           <|> char '-'
-           <|> char '.'
-           <|> char ':'
+nickChar = satisfy (\c -> not (isSpace c || c == '!'))
 
 -- Literally defined by `<nonwhite> [<nonwhite>]`, but it obviously
 -- can't be @ because that's the next separator...
-userChar = nickChar
+userChar = satisfy (\c -> not (isSpace c || c == '@'))
 
 -- IDK
-hostChar = nickChar
+hostChar = notSpaceChar
 
 prefixParser :: Parser Prefix
 prefixParser = do _ <- char ':'
@@ -148,7 +144,7 @@ commandParser = do keyword <- some alphaNumChar
                    _ <- optional $ some printChar
                    return command
 
-notSpaceChar = satisfy $ (not . isSpace)
+notSpaceChar = satisfy $ not . isSpace
 
 -- FIXME: broken, and only designed to notice CAP * ACK
 parseCap :: Parser Command
